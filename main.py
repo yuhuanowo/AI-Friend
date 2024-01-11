@@ -6,7 +6,8 @@ from langchain.memory import ConversationBufferMemory
 from dotenv import find_dotenv, load_dotenv
 import requests
 import argparse
-from transformers import AutoTokenizer, AutoModel
+from transformers import AutoTokenizer, AutoModel 
+from transformers import pipeline
 import datetime
 import threading
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
@@ -347,8 +348,11 @@ def get_voice (): #利用 Bert-VITS2 語音合成message ./Bert-VITS2 使用post
     message = mes[mes.find(":")+1:]
 
     #取得emo
-    emo = "i am so happy !!!"
-    url = "http://localhost:5000/voice?model_id=0&speaker_name=li&sdp_ratio=0.2&noise=0.2&noisew=0.9&length=1&language=ZH&auto_translate=false&auto_split=false&emotion="+emo
+    sentiment_classifier = pipeline(model="lxyuan/distilbert-base-multilingual-cased-sentiments-student", top_k=None)
+    emo = sentiment_classifier(message)[0][0]['label']
+    #emo to str
+    emoput = str(emo)
+    url = "http://localhost:5000/voice?model_id=0&speaker_name=li&sdp_ratio=0.2&noise=0.2&noisew=0.9&length=1&language=ZH&auto_translate=false&auto_split=false&emotion="+emoput
 
     payload = {'text': message}
     files=[
