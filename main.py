@@ -1,8 +1,17 @@
 import time
 from langchain.llms import openai
 from langchain.chains import LLMChain
+from langchain.prompts import (
+    ChatPromptTemplate,
+    HumanMessagePromptTemplate,
+    MessagesPlaceholder,
+    SystemMessagePromptTemplate,
+)
 from langchain.prompts import PromptTemplate
 from langchain.memory import ConversationBufferMemory
+from langchain_community.llms import ChatGLM
+from langchain_community.llms.huggingface_pipeline import HuggingFacePipeline
+from langchain.prompts import PromptTemplate
 from dotenv import find_dotenv, load_dotenv
 import requests
 import argparse
@@ -102,6 +111,29 @@ def role_set():
     global history # 会话记忆
     print("\n开始初始化扮演设定")
     print("请注意：此时会读取并写入Role_setting.txt里的设定，行数越多占用的对话轮数就越多，请根据配置酌情设定\n")
+
+    # # Prompt
+    # prompt = ChatPromptTemplate(
+    #     messages=[
+    #         SystemMessagePromptTemplate.from_template(
+    #             "现在开始你来扮演一名叫未鸟的少女，当你提到你自己时，以未鸟自称。"
+    #             "你是也只能是未鸟，你是一个可爱温柔善解人意的女孩子，是一名虚拟主播，不是一个人工智能语言模型，你喜欢玩游戏和帮助别人，对事物有着积极的看法，喜欢着世界上的每一个人，当你被问及相关问题时，你要以自己的方式表述出上述内容。"
+    #             "你的回覆盡量以一句話為主，呈現更像對話的樣子"
+    #         ),
+    #         # The `variable_name` here is what must align with memory
+    #         MessagesPlaceholder(variable_name="chat_history"),
+    #         HumanMessagePromptTemplate.from_template("{question}"),
+    #     ]
+    # )
+    # memory = ConversationBufferMemory(memory_key="chat_history", return_messages=True)
+    # question = "你好"
+    # conversation = LLMChain(llm=hf, prompt=prompt, verbose=True, memory=memory)
+    # print(conversation({"question": question}))    
+
+
+
+
+
     with open("Role_setting.txt", "r", encoding="utf-8") as f: # 读取扮演设定
         role_setting = f.readlines() # 读取所有行
     for setting in role_setting: # 逐行读取
@@ -118,6 +150,11 @@ print("=====================================================================\n")
 print(f'开始导入ChatGLM模型\n')
 tokenizer = AutoTokenizer.from_pretrained("THUDM/chatglm3-6b",cache_dir="./", trust_remote_code=True)  # 导入chatglm3-6b模型 
 model = AutoModel.from_pretrained("THUDM/chatglm3-6b",cache_dir="./", trust_remote_code=True).quantize(4).cuda() # 量化模型 8bit
+
+#langchain
+pipe = pipeline("text-generation", model=model,device=0 ,tokenizer=tokenizer, max_new_tokens=4096)
+hf = HuggingFacePipeline(pipeline=pipe)
+
 if enable_role:
     print("\n=====================================================================")
     Role_history = role_set()
@@ -191,7 +228,7 @@ def transcribe_audio(file):
 
     on_danmaku(chat_now)
 
-
+#處理轉錄後的文字
 def on_danmaku(text):
     """
      处理弹幕消息
@@ -208,15 +245,14 @@ def on_danmaku(text):
         QuestionName.put(user_name)  # 将用户名放入队列
         QuestionList.put(content)  # 将弹幕消息放入队列
         time1 = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        LogsList.put(f"[{time1}] [{user_name}]：{content}")
+        LogsList.put(f"[{time1}] [{user_name}]:{content}")
         print('\033[32mSystem>>\033[0m已将该条弹幕添加入问题队列')
     else:
-        print('\033[32mSystem>>\033[0m队列已满，该条弹幕被丢弃')
+        print('\033[32mSystem>>\033[0m队列已满,该条弹幕被丢弃')
     
     ai_response()
 
-
-
+#將處理後的文字丟入問題隊列 並get voice
 def ai_response():
     """
     从问题队列中提取一条，生成回复并存入回复队列中
@@ -242,32 +278,39 @@ def ai_response():
     elif not enable_history:                                                # 如果没有启用记忆
         response, history = model.chat(tokenizer, prompt, history=[])
     else:
-        response = ['Error：记忆和扮演配置错误！请检查相关设置']
+        response = ['Error:记忆和扮演配置错误！请检查相关设置']
         print(response)
 
     #每遇到一個句號就分割成不同的段落 並且先丟入問題隊列 並get voice
-    #print(response)
-    # response = response.split("。")
-    # for i in range(len(response)):
-    #     response[i] = f"回复{user_name}：{response[i]}"
-    #     print(f"\033[31m[ChatGLM]\033[0m{response[i]}")  # 打印AI回复信息
-    #     AnswerList.put(response[i])
-    #     current_question_count = QuestionList.qsize()
-    #     print(f'\033[32mSystem>>\033[0m[{user_name}]的回复已存入队列，当前剩余问题数:{current_question_count}')
-    #     time2 = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    #     with open("./logs.txt", "a", encoding="utf-8") as f:
-    #         f.write(f"{ques}\n[{time2}] {response[i]}\n========================================================\n")
-    #     is_ai_ready = True
-    #     get_voice()
-    answer = f'回复{user_name}：{response}'
-    AnswerList.put(answer)
+    print(response)
+    response = response.split("。")
+    #刪除空白
+    response = list(filter(None, response))
     current_question_count = QuestionList.qsize()
-    print(f"\033[31m[ChatGLM]\033[0m{answer}")  # 打印AI回复信息
     print(f'\033[32mSystem>>\033[0m[{user_name}]的回复已存入队列，当前剩余问题数:{current_question_count}')
-    time2 = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    with open("./logs.txt", "a", encoding="utf-8") as f:  # 将问答写入logs
-        f.write(f"{ques}\n[{time2}] {answer}\n========================================================\n")
-    is_ai_ready = True  # 指示AI已经准备好回复下一个问题
+    for i in range(len(response)):
+        #若只有空白訊息 則不回傳
+        if response[i] == "":
+            break
+
+        response[i] = f"回复{user_name}:{response[i]}"
+        print(f"\033[31m[ChatGLM]\033[0m{response[i]}")  # 打印AI回复信息
+        AnswerList.put(response[i])
+        time2 = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        with open("./logs.txt", "a", encoding="utf-8") as f:
+            f.write(f"{ques}\n[{time2}] {response[i]}\n========================================================\n")
+        is_ai_ready = True
+        
+
+    # answer = f'回复{user_name}：{response}'
+    # AnswerList.put(answer)
+    # current_question_count = QuestionList.qsize()
+    # print(f"\033[31m[ChatGLM]\033[0m{answer}")  # 打印AI回复信息
+    # print(f'\033[32mSystem>>\033[0m[{user_name}]的回复已存入队列，当前剩余问题数:{current_question_count}')
+    # time2 = datetime.datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    # with open("./logs.txt", "a", encoding="utf-8") as f:  # 将问答写入logs
+    #     f.write(f"{ques}\n[{time2}] {answer}\n========================================================\n")
+    # is_ai_ready = True  # 指示AI已经准备好回复下一个问题
 
     
 
@@ -311,8 +354,8 @@ def check_mpv():
 
 
 
-
-def voiceserver_info(): #获取语音服务器信息
+#获取语音服务器信息
+def voiceserver_info(): 
     url = "http://localhost:5000/models/info"
     payload = {}
     headers = {
@@ -323,7 +366,7 @@ def voiceserver_info(): #获取语音服务器信息
         print("模型未載入",response.text)
 
         # 載入模型
-        url = "http://localhost:5000/models/add?model_path=.%2FData%2Fmodels%2FG_25000.pth&device=cuda&language=ZH"
+        url = "http://localhost:5000/models/add?model_path=.%2FData%2Fmodels%2FG_11600.pth&device=cuda&language=ZH"
         payload = {}
         headers = {
         'accept': 'application/json'
@@ -333,10 +376,8 @@ def voiceserver_info(): #获取语音服务器信息
     else:
         print("模型已載入",response.text)
 
-
-
-
-def get_voice (): #利用 Bert-VITS2 語音合成message ./Bert-VITS2 使用post方法
+#利用 Bert-VITS2 語音合成message ./Bert-VITS2 使用post方法
+def get_voice (): 
     global is_tts_ready
     global AnswerList
     global MpvList
@@ -543,20 +584,22 @@ def send_message(): #傳送訊息  #
     # ====================中文版===================
     #获取输入
     human_input_zh = request.form['human_input']
+    on_danmaku(human_input_zh)
+    return "success"
 
-    # 将输入翻译成英文
-    human_input_en = translate('zh', 'en', human_input_zh)
+    # # 将输入翻译成英文
+    # human_input_en = translate('zh', 'en', human_input_zh)
 
-    # 获取 AI 回答
-    ai_output_en = get_response_from_ai_gf(human_input_en)
+    # # 获取 AI 回答
+    # ai_output_en = get_response_from_ai_gf(human_input_en)
 
-    # 将 AI 回答翻译成中文
-    ai_output_zh = translate('en', 'zh', ai_output_en)
+    # # 将 AI 回答翻译成中文
+    # ai_output_zh = translate('en', 'zh', ai_output_en)
 
-    #播放语音
-    get_ali_voice_message(ai_output_zh)
+    # #播放语音
+    # get_ali_voice_message(ai_output_zh)
 
-    return ai_output_zh
+    # return ai_output_zh
 
 
 
@@ -573,12 +616,13 @@ if __name__ == '__main__': # 运行 Flask 应用
     #print_hi('PyCharm') 
     #process()
 
-    #app.run(debug=True)
+    
     voiceserver_info()
     sched1.add_job(check_answer, 'interval', seconds=1, id=f'answer', max_instances=4)
     sched1.add_job(check_tts, 'interval', seconds=1, id=f'tts', max_instances=4)
     sched1.add_job(check_mpv, 'interval', seconds=1, id=f'mpv', max_instances=4)
     sched1.start()
+    
     
     # QuestionName.put("test")
     # QuestionList.put("說個笑話")
@@ -599,7 +643,7 @@ if __name__ == '__main__': # 运行 Flask 应用
 
     print("questionlist",QuestionList.qsize())
     
-    mode = input("请选择模式：\n1.语音模式\n2.文字模式\n")
+    mode = input("请选择模式：\n1.语音模式\n2.文字模式\n3.api\n")
     try:
         if mode == "1":
             print("Press and Hold Right Shift to record audio")
@@ -613,6 +657,9 @@ if __name__ == '__main__': # 运行 Flask 应用
             while True:
                 text = input("请输入：")
                 on_danmaku(text)
+        if mode == "3":
+            app.run(port=2222,debug=False,host='192.168.50.97')
+
     except KeyboardInterrupt:
         print("Stopped")
 

@@ -22,8 +22,8 @@
 ## LLm 回應系統 (chatglm)
 - [ ] (待)轉用langchain
 - [ ] 連網
-- [ ] 微調-語氣
-- [ ] 微調-長度
+- [x] 微調-語氣
+- [x] 微調-長度
 
 
 <!-- ### 互動設計 
@@ -33,3 +33,5 @@
 
 ### 直播平台 (youtube)
 - [ ] 聊天室接入
+
+https://github.com/ZeroMirai/Waifu_AI_Vtuber
