@@ -1,11 +1,10 @@
 import logging
 
-from langchain_experimental.pydantic_v1 import BaseModel
 from langchain.prompts import PromptTemplate
 from langchain_community.llms import HuggingFacePipeline
 from transformers import pipeline
 import time
-from langchain.llms import openai
+from langchain_community.llms import openai
 from langchain.chains import LLMChain
 from langchain.prompts import (
     ChatPromptTemplate,
@@ -43,11 +42,20 @@ logging.basicConfig(level=logging.ERROR)
 import torch
 from transformers import AutoConfig, AutoModelForCausalLM, AutoTokenizer
 
-model_id = "meta-llama/Llama-2-7b-chat-hf"
+model_id = "hfl/llama-3-chinese-8b-instruct-v3"
 
-device = "cuda"
-
+device = "mps"
 if torch.cuda.is_available():
+    # config = AutoConfig.from_pretrained(model_id)
+    #config.pretraining_tp = 1
+    model = AutoModelForCausalLM.from_pretrained(
+        model_id,
+        #config=config,
+        torch_dtype=torch.float16,
+        device_map="auto",
+        cache_dir="./"
+    )
+elif torch.backends.mps.is_available():
     # config = AutoConfig.from_pretrained(model_id)
     #config.pretraining_tp = 1
     model = AutoModelForCausalLM.from_pretrained(

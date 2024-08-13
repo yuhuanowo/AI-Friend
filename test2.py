@@ -10,10 +10,11 @@ from langchain.prompts import (
 from langchain.prompts import PromptTemplate
 from langchain.memory import ConversationBufferMemory
 from langchain_community.llms.openai import OpenAI
+from langchain_community.chat_models import ChatOllama
 
 
 # LLM
-llm = OpenAI(base_url="http://localhost:1234/v1", api_key="not-needed",model_name="local-model")
+llm = ChatOllama(model="llama3.1")
 
 #use local ai
 

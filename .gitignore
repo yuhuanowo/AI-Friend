@@ -153,9 +153,9 @@ cython_debug/
 
 
 
-#bert-vits2
-/bert-vits2/Data/
-/models--THUDM--chatglm3-6b/
 *bin
 logs.txt
 input.wav
+output/
+config/
+asset/
