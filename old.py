@@ -216,7 +216,7 @@ if LLMmethod == "local":
 
 elif LLMmethod == "openai":
     print ("載入openai模型")
-    api_key = "AIzaSyAO5KYVsXGMlxqAOAGfCGFyBXmbPRHRD88"
+    api_key = os.getenv("OPENAI_API_KEY")
     llm = GoogleGenerativeAI(model="gemini-pro", google_api_key=api_key)
     def get_response_from_ai_gf(human_input): # 用 GPT3 生成回答 
         template="""
