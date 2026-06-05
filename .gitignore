@@ -159,3 +159,8 @@ input.wav
 output/
 config/
 asset/
+
+# 外部播放器 / 大型二進位檔（請自行安裝，勿提交進 repo）
+mpv.exe
+mpv.app/
+*.exe
